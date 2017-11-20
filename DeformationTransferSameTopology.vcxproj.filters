@@ -1,0 +1,74 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="algorithm">
+      <UniqueIdentifier>{2aecd36f-7fe8-42dc-90a5-b0efdfde4cd7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="algorithm\ldpMat">
+      <UniqueIdentifier>{39f06846-eb17-403b-a0f6-fc0c9a909892}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="algorithm\Renderable">
+      <UniqueIdentifier>{cd16f2c8-d15a-4719-b84b-33733ba9610f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="algorithm\Renderable\bmesh.cpp">
+      <Filter>algorithm\Renderable</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\Renderable\ObjMesh.cpp">
+      <Filter>algorithm\Renderable</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\MeshTransfer.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="algorithm\ldpMat\half.hpp">
+      <Filter>algorithm\ldpMat</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\ldpMat\ldp_basic_mat.h">
+      <Filter>algorithm\ldpMat</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\ldpMat\ldp_basic_vec.h">
+      <Filter>algorithm\ldpMat</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\ldpMat\ldpdef.h">
+      <Filter>algorithm\ldpMat</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\ldpMat\Quaternion.h">
+      <Filter>algorithm\ldpMat</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\Renderable\bmesh.h">
+      <Filter>algorithm\Renderable</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\Renderable\bmesh_private.h">
+      <Filter>algorithm\Renderable</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\Renderable\ObjMesh.h">
+      <Filter>algorithm\Renderable</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\Renderable\Renderable.h">
+      <Filter>algorithm\Renderable</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\MeshTransfer.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\ParameterConfig.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
