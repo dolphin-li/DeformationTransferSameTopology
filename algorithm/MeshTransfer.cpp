@@ -37,12 +37,18 @@ const char* MeshTransfer::getErrString()const
 	return m_errStr.c_str();
 }
 
-bool MeshTransfer::init(int nTriangles, const Int3* pTriangles, int nVertices, const Float3* pSrcVertices0)
+bool MeshTransfer::init(int nTriangles, const Int3* pTriangles, int nVertices, 
+	const Float3* pSrcVertices0, const Float3* pTarVertices0)
 {
 	clear();
 	if (hasIllegalData((const float*)pSrcVertices0, nVertices * 3))
 	{
 		m_errStr = "nan or inf in input pSrcVertices0";
+		return false;
+	}
+	if (hasIllegalData((const float*)pTarVertices0, nVertices * 3))
+	{
+		m_errStr = "nan or inf in input pTarVertices0";
 		return false;
 	}
 	if (hasIllegalTriangle(pTriangles, nTriangles))
@@ -52,8 +58,10 @@ bool MeshTransfer::init(int nTriangles, const Int3* pTriangles, int nVertices, c
 	}
 
 	m_srcVerts0.resize(nVertices);
-	for (int i = 0; i < nVertices; i++)
-		m_srcVerts0[i] = pSrcVertices0[i];
+	memcpy(m_srcVerts0.data(), pSrcVertices0, nVertices * sizeof(Float3));
+
+	m_tarVerts0.resize(nVertices);
+	memcpy(m_tarVerts0.data(), pTarVertices0, nVertices * sizeof(Float3));
 
 	m_facesTri.resize(nTriangles);
 	for (int i = 0; i < nTriangles; i++)
@@ -63,9 +71,28 @@ bool MeshTransfer::init(int nTriangles, const Int3* pTriangles, int nVertices, c
 	findAnchorPoints();
 	setup_ancorMat();
 	setup_RegularizationMat();
+	setup_E1Mat(m_tarVerts0);
+	setup_RegularizationRhs(m_tarVerts0);
+	setup_ancorRhs(m_tarVerts0);
+
+	if (hasIllegalData(m_E1Mat.valuePtr(), (int)m_E1Mat.nonZeros()))
+	{
+		m_errStr = "nan or inf in E1Mat!";
+		return false;
+	}
+
 	const real w_anchor = real(MeshTransferParameter::Transfer_Weight_Anchor / (1e-3f + m_ancorMat.rows()));
 	const real w_reg = real(MeshTransferParameter::Transfer_Weight_Regularization / (1e-3f + m_regAtA.rows()));
-	m_ancorRegSumAtA = m_ancorMat.transpose() * m_ancorMat * w_anchor + m_regAtA * w_reg;
+	const real w1 = real(MeshTransferParameter::Transfer_Weight_Correspond / (1e-3f + m_E1Mat.rows()));
+
+	m_ancorMatT = m_ancorMat.transpose();
+	m_E1MatT = m_E1Mat.transpose();
+	m_E1MatT *= w1;
+
+	m_AtA = m_E1MatT * m_E1Mat + m_ancorMatT * m_ancorMat * w_anchor + m_regAtA * w_reg;
+	m_anchorRegSumAtb = m_ancorMatT * m_ancorRhs * w_anchor + m_regAtb * w_reg;
+
+	m_solver.compute(m_AtA);
 
 	m_bInit = true;
 	m_shouldAnalysisTopology = true;
@@ -128,22 +155,16 @@ void FastAtAGivenStructure(const Eigen::SparseMatrix<T>& A, const Eigen::SparseM
 	}//end for i
 }
 
-bool MeshTransfer::transfer(const std::vector<Float3>& tarVerts0,
-	const std::vector<Float3>& srcVertsDeformed, std::vector<Float3>& tarVertsDeformed)
+bool MeshTransfer::transfer(const std::vector<Float3>& srcVertsDeformed, std::vector<Float3>& tarVertsDeformed)
 {
 	if (!m_bInit)
 	{
 		m_errStr = "not initialized when calling transfer()";
 		return false;
 	}
-	if (tarVerts0.size() != m_srcVerts0.size() || srcVertsDeformed.size() != m_srcVerts0.size())
+	if (srcVertsDeformed.size() != m_srcVerts0.size())
 	{
 		m_errStr = "transfer: vertex size not matched!";
-		return false;
-	}
-	if (hasIllegalData((const float*)tarVerts0.data(), (int)tarVerts0.size() * 3))
-	{
-		m_errStr = "nan or inf in tarVerts0!";
 		return false;
 	}
 	if (hasIllegalData((const float*)srcVertsDeformed.data(), (int)srcVertsDeformed.size() * 3))
@@ -153,44 +174,12 @@ bool MeshTransfer::transfer(const std::vector<Float3>& tarVerts0,
 	}
 
 	// computing all energy matrices
-	setup_E1MatAndRhs(srcVertsDeformed, tarVerts0);
-	setup_ancorRhs(tarVerts0);
-	setup_RegularizationRhs(tarVerts0);
-
-	// all energy weights should be normalized by their number of terms
-	const real w1 = real(MeshTransferParameter::Transfer_Weight_Correspond / (1e-3f + m_E1Mat.rows()));
-	const real w_anchor = real(MeshTransferParameter::Transfer_Weight_Anchor / (1e-3f + m_ancorMat.rows()));
-	const real w_reg = real(MeshTransferParameter::Transfer_Weight_Regularization / (1e-3f + m_regAtA.rows()));
-
-	if (hasIllegalData(m_E1Mat.valuePtr(), (int)m_E1Mat.nonZeros()))
-	{
-		m_errStr = "nan or inf in E1Mat!";
-		return false;
-	}
+	setup_E1Rhs(srcVertsDeformed);
 
 	// sum all the energy terms
-	if (m_shouldAnalysisTopology)
-	{
-		m_E1MatT = m_E1Mat.transpose();
-		m_E1TE1 = m_E1MatT * m_E1Mat;
-		m_AtA = m_E1TE1 * w1 + m_ancorRegSumAtA;
-	}
-	else
-	{
-		FastTransGivenStructure(m_E1Mat, m_E1MatT); 
-		FastAtAGivenStructure(m_E1Mat, m_E1MatT, m_E1TE1);
-		m_AtA = m_E1TE1 * w1 + m_ancorRegSumAtA;
-	}
-	m_ancorRegSumAtb = m_ancorMat.transpose() * m_ancorRhs * w_anchor + m_regAtb * w_reg;
-	m_Atb = m_E1MatT * m_E1Rhs * w1 + m_ancorRegSumAtb;
+	m_Atb = m_E1MatT * m_E1Rhs + m_anchorRegSumAtb;
 	
 	// solve
-	if (m_shouldAnalysisTopology)
-	{
-		m_solver.analyzePattern(m_AtA);
-		m_shouldAnalysisTopology = false;
-	}
-	m_solver.factorize(m_AtA);
 	m_x = m_solver.solve(m_Atb);
 
 	// return the value
@@ -328,7 +317,7 @@ inline void fillCooSys_by_Mat(std::vector<Eigen::Triplet<real>>& cooSys, int row
 	} // end for iBlock
 }
 
-void MeshTransfer::setup_E1MatAndRhs(const std::vector<Float3>& srcVertsDeformed, const std::vector<Float3>& tarVerts0)
+void MeshTransfer::setup_E1Mat(const std::vector<Float3>& tarVerts0)
 {
 	const int nMeshVerts = (int)tarVerts0.size();
 	const int nTotalVerts = nMeshVerts + (int)m_facesTri.size();
@@ -345,53 +334,55 @@ void MeshTransfer::setup_E1MatAndRhs(const std::vector<Float3>& srcVertsDeformed
 		fill4VertsOfFace(iFace, m_facesTri, tarVerts0, id_vi_tar.data(), vi_tar);
 		Eigen::Matrix<real, 9, 12> Ti = getMatrix_namedby_T(vi_tar);
 
+		// construct the gradient transfer matrix
+		bool inValid = hasIllegalData(Ti.data(), (int)Ti.size());
+		if (inValid)
+			Ti.setZero();
+
+		// push matrix
+		const int row = iFace * 9;
+		fillCooSys_by_Mat(cooSys, row, nTotalVerts, id_vi_tar.data(), Ti);
+	}
+
+	m_E1Mat.resize((int)m_E1Rhs.size(), nTotalVerts * 3);
+	if (cooSys.size() > 0)
+		m_E1Mat.setFromTriplets(cooSys.begin(), cooSys.end());
+}
+
+void MeshTransfer::setup_E1Rhs(const std::vector<Float3>& srcVertsDeformed)
+{
+	const int nMeshVerts = (int)srcVertsDeformed.size();
+	m_E1Rhs.resize(m_facesTri.size() * 9);
+	for (int iFace = 0; iFace < (int)m_facesTri.size(); iFace++)
+	{
 		// face_i_src
 		Int4 id_vi_src0, id_vi_src1;
 		Float3 vi_src0[4], vi_src1[4];
 		fill4VertsOfFace(iFace, m_facesTri, m_srcVerts0, id_vi_src0.data(), vi_src0);
 		fill4VertsOfFace(iFace, m_facesTri, srcVertsDeformed, id_vi_src1.data(), vi_src1);
 
-		// calculate the weightings
-		Mat3f V_src_0 = getV(vi_src0);
-		Mat3f V_src_1 = getV(vi_src1);
-		Mat3f G_src = V_src_1 * V_src_0.inverse();
-		float G_src_norm = (G_src - Mat3f::Identity()).norm();
-		real weight_tri =
-			pow(
-				real((1.f + G_src_norm) / (MeshTransferParameter::Transfer_Graident_Emhasis_kappa + G_src_norm)),
-				real(MeshTransferParameter::Transfer_Graident_Emhasis_theta)
-			);
-		weight_tri = sqrt(weight_tri);
-
 		// construct the gradient transfer matrix
 		Eigen::Matrix<real, 9, 12> Si_A = getMatrix_namedby_T(vi_src0);
 		Eigen::Matrix<real, 12, 1> Si_x;
-		bool inValid = std::isnan(weight_tri) || std::isinf(weight_tri)
-			|| hasIllegalData(Ti.data(), Ti.size()) || hasIllegalData(Si_A.data(), Si_A.size());
+		bool inValid = hasIllegalData(Si_A.data(), (int)Si_A.size());
 		for (int k = 0; k < 4; k++)
 		{
-			for (int kk = 0; kk < 3; kk++)
-				Si_x[4 * kk + k] = vi_src1[k][kk];
+			Si_x[4 * 0 + k] = vi_src1[k][0];
+			Si_x[4 * 1 + k] = vi_src1[k][1];
+			Si_x[4 * 2 + k] = vi_src1[k][2];
 		}
 		if (inValid)
 		{
 			Si_A.setZero();
 			Si_x.setZero();
-			Ti.setZero();
 		}
 		Eigen::Matrix<real, 9, 1> Si_b = Si_A * Si_x;
 
 		// push matrix
 		const int row = iFace * 9;
-		fillCooSys_by_Mat(cooSys, row, nTotalVerts, id_vi_tar.data(), weight_tri * Ti);
-		for (int y = 0; y < Ti.rows(); y++)
-			m_E1Rhs[row + y] = weight_tri * Si_b[y];
+		for (int y = 0; y < Si_b.rows(); y++)
+			m_E1Rhs[row + y] = Si_b[y];
 	}
-
-
-	m_E1Mat.resize((int)m_E1Rhs.size(), nTotalVerts * 3);
-	if (cooSys.size() > 0)
-		m_E1Mat.setFromTriplets(cooSys.begin(), cooSys.end());
 }
 
 void MeshTransfer::setup_ancorMat()

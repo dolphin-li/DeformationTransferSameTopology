@@ -30,17 +30,19 @@ public:
 	~MeshTransfer() {}
 
 	// Initialize the topology and 0th reference mesh A0
-	bool init(int nTriangles, const Int3* pTriangles, int nVertices, const Float3* pSrcVertices0);
+	bool init(int nTriangles, const Int3* pTriangles, int nVertices, 
+		const Float3* pSrcVertices0, const Float3* pTarVertices0);
 
 	// Given B0, Ai, output Bi
-	bool transfer(const std::vector<Float3>& tarVerts0, const std::vector<Float3>& srcVerts1, std::vector<Float3>& tarVerts1);
+	bool transfer(const std::vector<Float3>& srcVerts1, std::vector<Float3>& tarVerts1);
 
 	const char* getErrString()const;
 protected:
 	void clear();
 	void findAnchorPoints();
 
-	void setup_E1MatAndRhs(const std::vector<Float3>& srcVertsDeformed, const std::vector<Float3>& tarVerts0);
+	void setup_E1Mat(const std::vector<Float3>& tarVerts0);
+	void setup_E1Rhs(const std::vector<Float3>& srcVertsDeformed);
 	void setup_ancorMat();
 	void setup_ancorRhs(const std::vector<Float3>& tarVerts0);
 	void setup_RegularizationMat();
@@ -53,18 +55,19 @@ private:
 	std::vector<Int3> m_facesTri;		// triangles converted from src mesh
 	std::vector<int> m_anchors;			// index of all anchor points
 	std::vector<Float3> m_srcVerts0;
+	std::vector<Float3> m_tarVerts0;
 	std::string m_errStr;
 
 	// energy related
-	SpMat m_E1Mat, m_E1MatT, m_E1TE1;	// the energy for src-tar triangle correspondences
+	SpMat m_E1Mat, m_E1MatT;			// the energy for src-tar triangle correspondences
 	Vec m_E1Rhs;						// the energy for src-tar triangle correspondences
 
 	SpMat m_ancorMat;					// for anchor points
+	SpMat m_ancorMatT;					// for anchor points
 	Vec m_ancorRhs;						// for anchor points
 	SpMat m_regAtA;						// for isolated-point regularization
 	Vec m_regAtb;						// for isolated-point regularization
-	SpMat m_ancorRegSumAtA;
-	Vec m_ancorRegSumAtb;
+	Vec m_anchorRegSumAtb;				// m_ancorMatT * m_ancorRhs * w_anchor + m_regAtb * w_reg
 
 	SpMat m_AtA;						// the total energy matrix
 	Vec m_Atb, m_x;						// the total right-hand-side value and the solved result

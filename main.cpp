@@ -91,11 +91,15 @@ int main(int argc, const char* argv[])
 		
 	for (int i = 0; i < NUM_THREADS; i++)
 	{
-		if (!transfer[i].init((int)triangles.size(), triangles.data(), (int)srcVerts0.size(), srcVerts0.data()))
+		gtime_t tbegin = ldp::gtime_now();
+		if (!transfer[i].init((int)triangles.size(), triangles.data(), 
+			(int)srcVerts0.size(), srcVerts0.data(), tarVerts0.data()))
 		{
 			printf("[thread=%d]: %s\n", i, transfer[i].getErrString());
 			return -1;
 		}
+		gtime_t tend = ldp::gtime_now();
+		printf("init time[%d]: %f sec\n", i, ldp::gtime_seconds(tbegin, tend));
 	}
 
 #pragma omp parallel for num_threads(NUM_THREADS)
@@ -117,7 +121,7 @@ int main(int argc, const char* argv[])
 		gtime_t tbegin = ldp::gtime_now();
 
 		objMeshGetVerts(srcMesh1, srcVerts1);
-		if (!transfer[tid].transfer(tarVerts0, srcVerts1, tarVerts1))
+		if (!transfer[tid].transfer(srcVerts1, tarVerts1))
 		{
 			printf("%s\n", transfer[tid].getErrString());
 			continue;
