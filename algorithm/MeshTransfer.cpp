@@ -84,14 +84,13 @@ bool MeshTransfer::init(int nTriangles, const Int3* pTriangles, int nVertices,
 	const real w_anchor = real(MeshTransferParameter::Transfer_Weight_Anchor / (1e-3f + m_ancorMat.rows()));
 	const real w_reg = real(MeshTransferParameter::Transfer_Weight_Regularization / (1e-3f + m_regAtA.rows()));
 	const real w1 = real(MeshTransferParameter::Transfer_Weight_Correspond / (1e-3f + m_E1Mat.rows()));
-
+	
 	m_ancorMatT = m_ancorMat.transpose();
 	m_E1MatT = m_E1Mat.transpose();
 	m_E1MatT *= w1;
-
+	
 	m_AtA = m_E1MatT * m_E1Mat + m_ancorMatT * m_ancorMat * w_anchor + m_regAtA * w_reg;
 	m_anchorRegSumAtb = m_ancorMatT * m_ancorRhs * w_anchor + m_regAtb * w_reg;
-
 	m_solver.compute(m_AtA);
 
 	m_bInit = true;
@@ -175,9 +174,10 @@ bool MeshTransfer::transfer(const std::vector<Float3>& srcVertsDeformed, std::ve
 
 	// computing all energy matrices
 	setup_E1Rhs(srcVertsDeformed);
-
+	
 	// sum all the energy terms
-	m_Atb = m_E1MatT * m_E1Rhs + m_anchorRegSumAtb;
+	m_Atb = m_E1MatT * m_E1Rhs;
+	m_Atb += m_anchorRegSumAtb;
 	
 	// solve
 	m_x = m_solver.solve(m_Atb);
@@ -261,9 +261,8 @@ inline Mat3f getV(Float3* v)
 	return V;
 }
 
-inline Eigen::Matrix<real, 9, 12> getMatrix_namedby_T(Float3* v)
+inline void getMatrix_namedby_T(Float3* v, Eigen::Matrix<real, 3, 4>& A)
 {
-	Eigen::Matrix<real, 9, 12> T = Eigen::Matrix<real, 9, 12>::Zero();
 	Mat3f V = getV(v).inverse();
 
 	// The matrix T is in block diag style:
@@ -271,27 +270,22 @@ inline Eigen::Matrix<real, 9, 12> getMatrix_namedby_T(Float3* v)
 	// | 0 A 0 |
 	// | 0 0 A |
 	// where each A is a 3x4 matrix
-	for (int y = 0; y < 9; y += 3)
-	{
-		int x = y / 3 * 4;
-		T(y + 0, x + 0) = -V(0, 0) - V(1, 0) - V(2, 0);
-		T(y + 0, x + 1) = V(0, 0);
-		T(y + 0, x + 2) = V(1, 0);
-		T(y + 0, x + 3) = V(2, 0);
-		T(y + 1, x + 0) = -V(0, 1) - V(1, 1) - V(2, 1);
-		T(y + 1, x + 1) = V(0, 1);
-		T(y + 1, x + 2) = V(1, 1);
-		T(y + 1, x + 3) = V(2, 1);
-		T(y + 2, x + 0) = -V(0, 2) - V(1, 2) - V(2, 2);
-		T(y + 2, x + 1) = V(0, 2);
-		T(y + 2, x + 2) = V(1, 2);
-		T(y + 2, x + 3) = V(2, 2);
-	}
-	return T;
+	A(0, 0) = -V(0, 0) - V(1, 0) - V(2, 0);
+	A(0, 1) = V(0, 0);
+	A(0, 2) = V(1, 0);
+	A(0, 3) = V(2, 0);
+	A(1, 0) = -V(0, 1) - V(1, 1) - V(2, 1);
+	A(1, 1) = V(0, 1);
+	A(1, 2) = V(1, 1);
+	A(1, 3) = V(2, 1);
+	A(2, 0) = -V(0, 2) - V(1, 2) - V(2, 2);
+	A(2, 1) = V(0, 2);
+	A(2, 2) = V(1, 2);
+	A(2, 3) = V(2, 2);
 }
 
 inline void fillCooSys_by_Mat(std::vector<Eigen::Triplet<real>>& cooSys, int row,
-	int nTotalVerts, int* id, const Eigen::Matrix<real, 9, 12, 0, 9, 12>& T)
+	int nTotalVerts, int* id, const Eigen::Matrix<real, 3, 4>& T)
 {
 	// The matrix T is in block diag style:
 	// | A 0 0 |
@@ -304,14 +298,13 @@ inline void fillCooSys_by_Mat(std::vector<Eigen::Triplet<real>>& cooSys, int row
 	int pos = row * 4;
 	for (int iBlock = 0; iBlock < nBlocks; iBlock++)
 	{
-		const int xb = iBlock * nPoints;
 		const int yb = iBlock * nCoords;
 		for (int y = 0; y < nCoords; y++)
 		{
 			for (int x = 0; x < nPoints; x++)
 			{
 				const int col = nTotalVerts * iBlock + id[x];
-				cooSys[pos++] = Eigen::Triplet<real>(row + yb + y, col, T(yb + y, xb + x));
+				cooSys[pos++] = Eigen::Triplet<real>(row + yb + y, col, T(y, x));
 			}
 		}
 	} // end for iBlock
@@ -326,13 +319,15 @@ void MeshTransfer::setup_E1Mat(const std::vector<Float3>& tarVerts0)
 	m_E1Rhs.resize(m_facesTri.size() * 9);
 	cooSys.resize(m_E1Rhs.size() * 4);
 
+	Eigen::Matrix<real, 3, 4> Ti;
+	Ti.setZero();
+	Int4 id_vi_tar;
+	Float3 vi_tar[4];
 	for (int iFace = 0; iFace < (int)m_facesTri.size(); iFace++)
 	{
 		// face_i_tar
-		Int4 id_vi_tar;
-		Float3 vi_tar[4];
 		fill4VertsOfFace(iFace, m_facesTri, tarVerts0, id_vi_tar.data(), vi_tar);
-		Eigen::Matrix<real, 9, 12> Ti = getMatrix_namedby_T(vi_tar);
+		getMatrix_namedby_T(vi_tar, Ti);
 
 		// construct the gradient transfer matrix
 		bool inValid = hasIllegalData(Ti.data(), (int)Ti.size());
@@ -353,35 +348,51 @@ void MeshTransfer::setup_E1Rhs(const std::vector<Float3>& srcVertsDeformed)
 {
 	const int nMeshVerts = (int)srcVertsDeformed.size();
 	m_E1Rhs.resize(m_facesTri.size() * 9);
+	Eigen::Matrix<real, 3, 4> Si_A;
+	Eigen::Matrix<real, 4, 1> Si_x[3];
+	Eigen::Matrix<real, 3, 1> Si_b[3];
+	Si_A.setZero();
+	Int4 id_vi_src0, id_vi_src1;
+	Float3 vi_src0[4], vi_src1[4];
 	for (int iFace = 0; iFace < (int)m_facesTri.size(); iFace++)
 	{
 		// face_i_src
-		Int4 id_vi_src0, id_vi_src1;
-		Float3 vi_src0[4], vi_src1[4];
 		fill4VertsOfFace(iFace, m_facesTri, m_srcVerts0, id_vi_src0.data(), vi_src0);
 		fill4VertsOfFace(iFace, m_facesTri, srcVertsDeformed, id_vi_src1.data(), vi_src1);
 
 		// construct the gradient transfer matrix
-		Eigen::Matrix<real, 9, 12> Si_A = getMatrix_namedby_T(vi_src0);
-		Eigen::Matrix<real, 12, 1> Si_x;
+		getMatrix_namedby_T(vi_src0, Si_A);
 		bool inValid = hasIllegalData(Si_A.data(), (int)Si_A.size());
 		for (int k = 0; k < 4; k++)
 		{
-			Si_x[4 * 0 + k] = vi_src1[k][0];
-			Si_x[4 * 1 + k] = vi_src1[k][1];
-			Si_x[4 * 2 + k] = vi_src1[k][2];
+			Si_x[0][k] = vi_src1[k][0];
+			Si_x[1][k] = vi_src1[k][1];
+			Si_x[2][k] = vi_src1[k][2];
 		}
 		if (inValid)
 		{
 			Si_A.setZero();
-			Si_x.setZero();
+			Si_x[0].setZero();
+			Si_x[1].setZero();
+			Si_x[2].setZero();
 		}
-		Eigen::Matrix<real, 9, 1> Si_b = Si_A * Si_x;
+		Si_b[0] = Si_A * Si_x[0];
+		Si_b[1] = Si_A * Si_x[1];
+		Si_b[2] = Si_A * Si_x[2];
 
 		// push matrix
 		const int row = iFace * 9;
-		for (int y = 0; y < Si_b.rows(); y++)
-			m_E1Rhs[row + y] = Si_b[y];
+		m_E1Rhs[row + 0] = Si_b[0][0];
+		m_E1Rhs[row + 1] = Si_b[0][1];
+		m_E1Rhs[row + 2] = Si_b[0][2];
+
+		m_E1Rhs[row + 3] = Si_b[1][0];
+		m_E1Rhs[row + 4] = Si_b[1][1];
+		m_E1Rhs[row + 5] = Si_b[1][2];
+
+		m_E1Rhs[row + 6] = Si_b[2][0];
+		m_E1Rhs[row + 7] = Si_b[2][1];
+		m_E1Rhs[row + 8] = Si_b[2][2];
 	}
 }
 
