@@ -13,7 +13,7 @@ static bool hasIllegalData(const T* data, int n)
 {
 	for (int i = 0; i < n; i++)
 	{
-		if (std::isinf(data[i]) || std::isinf(data[i]))
+		if (std::isinf(data[i]) || std::isnan(data[i]))
 			return true;
 	}
 	return false;
@@ -128,7 +128,7 @@ void FastAtAGivenStructure(const Eigen::SparseMatrix<T>& A, const Eigen::SparseM
 	}//end for i
 }
 
-bool MeshTransfer::transfer(const std::vector<Float3>& tarVerts0, 
+bool MeshTransfer::transfer(const std::vector<Float3>& tarVerts0,
 	const std::vector<Float3>& srcVertsDeformed, std::vector<Float3>& tarVertsDeformed)
 {
 	if (!m_bInit)
@@ -162,6 +162,12 @@ bool MeshTransfer::transfer(const std::vector<Float3>& tarVerts0,
 	const real w_anchor = real(MeshTransferParameter::Transfer_Weight_Anchor / (1e-3f + m_ancorMat.rows()));
 	const real w_reg = real(MeshTransferParameter::Transfer_Weight_Regularization / (1e-3f + m_regAtA.rows()));
 
+	if (hasIllegalData(m_E1Mat.valuePtr(), (int)m_E1Mat.nonZeros()))
+	{
+		m_errStr = "nan or inf in E1Mat!";
+		return false;
+	}
+
 	// sum all the energy terms
 	if (m_shouldAnalysisTopology)
 	{
@@ -171,13 +177,13 @@ bool MeshTransfer::transfer(const std::vector<Float3>& tarVerts0,
 	}
 	else
 	{
-		FastTransGivenStructure(m_E1Mat, m_E1MatT);
+		FastTransGivenStructure(m_E1Mat, m_E1MatT); 
 		FastAtAGivenStructure(m_E1Mat, m_E1MatT, m_E1TE1);
 		m_AtA = m_E1TE1 * w1 + m_ancorRegSumAtA;
 	}
 	m_ancorRegSumAtb = m_ancorMat.transpose() * m_ancorRhs * w_anchor + m_regAtb * w_reg;
 	m_Atb = m_E1MatT * m_E1Rhs * w1 + m_ancorRegSumAtb;
-
+	
 	// solve
 	if (m_shouldAnalysisTopology)
 	{
@@ -219,8 +225,8 @@ void MeshTransfer::vertex_vec_to_point(const Vec& x, std::vector<Float3>& verts)
 {
 	verts.resize(m_srcVerts0.size());
 	for (int i = 0; i < verts.size(); i++)
-	for (int k = 0; k < 3; k++)
-		verts[i][k] = (float)x[k*(x.size() / 3) + i];
+		for (int k = 0; k < 3; k++)
+			verts[i][k] = (float)x[k*(x.size() / 3) + i];
 }
 
 void MeshTransfer::vertex_point_to_vec(Vec& x, const std::vector<Float3>& verts, const std::vector<Int3>& faces)const
@@ -231,8 +237,8 @@ void MeshTransfer::vertex_point_to_vec(Vec& x, const std::vector<Float3>& verts,
 
 	x.setZero();
 	for (int i = 0; i < verts.size(); i++)
-	for (int k = 0; k < 3; k++)
-		x[k*nTotalVerts + i] = verts[i][k];
+		for (int k = 0; k < 3; k++)
+			x[k*nTotalVerts + i] = verts[i][k];
 
 	for (int i = 0; i < faces.size(); i++)
 	{
@@ -261,8 +267,8 @@ inline Mat3f getV(Float3* v)
 {
 	Mat3f V;
 	for (int y = 0; y < 3; y++)
-	for (int x = 0; x < 3; x++)
-		V(y, x) = v[x + 1][y] - v[0][y];
+		for (int x = 0; x < 3; x++)
+			V(y, x) = v[x + 1][y] - v[0][y];
 	return V;
 }
 
@@ -297,7 +303,7 @@ inline Eigen::Matrix<real, 9, 12> getMatrix_namedby_T(Float3* v)
 
 inline void fillCooSys_by_Mat(std::vector<Eigen::Triplet<real>>& cooSys, int row,
 	int nTotalVerts, int* id, const Eigen::Matrix<real, 9, 12, 0, 9, 12>& T)
-{	
+{
 	// The matrix T is in block diag style:
 	// | A 0 0 |
 	// | 0 A 0 |
@@ -349,21 +355,29 @@ void MeshTransfer::setup_E1MatAndRhs(const std::vector<Float3>& srcVertsDeformed
 		Mat3f V_src_0 = getV(vi_src0);
 		Mat3f V_src_1 = getV(vi_src1);
 		Mat3f G_src = V_src_1 * V_src_0.inverse();
-		float G_src_norm = (G_src-Mat3f::Identity()).norm();
+		float G_src_norm = (G_src - Mat3f::Identity()).norm();
 		real weight_tri =
 			pow(
-			real((1.f + G_src_norm) / (MeshTransferParameter::Transfer_Graident_Emhasis_kappa + G_src_norm)),
-			real(MeshTransferParameter::Transfer_Graident_Emhasis_theta)
+				real((1.f + G_src_norm) / (MeshTransferParameter::Transfer_Graident_Emhasis_kappa + G_src_norm)),
+				real(MeshTransferParameter::Transfer_Graident_Emhasis_theta)
 			);
 		weight_tri = sqrt(weight_tri);
 
 		// construct the gradient transfer matrix
 		Eigen::Matrix<real, 9, 12> Si_A = getMatrix_namedby_T(vi_src0);
 		Eigen::Matrix<real, 12, 1> Si_x;
+		bool inValid = std::isnan(weight_tri) || std::isinf(weight_tri)
+			|| hasIllegalData(Ti.data(), Ti.size()) || hasIllegalData(Si_A.data(), Si_A.size());
 		for (int k = 0; k < 4; k++)
 		{
 			for (int kk = 0; kk < 3; kk++)
 				Si_x[4 * kk + k] = vi_src1[k][kk];
+		}
+		if (inValid)
+		{
+			Si_A.setZero();
+			Si_x.setZero();
+			Ti.setZero();
 		}
 		Eigen::Matrix<real, 9, 1> Si_b = Si_A * Si_x;
 
@@ -371,7 +385,7 @@ void MeshTransfer::setup_E1MatAndRhs(const std::vector<Float3>& srcVertsDeformed
 		const int row = iFace * 9;
 		fillCooSys_by_Mat(cooSys, row, nTotalVerts, id_vi_tar.data(), weight_tri * Ti);
 		for (int y = 0; y < Ti.rows(); y++)
-			m_E1Rhs[row+y] = weight_tri * Si_b[y];
+			m_E1Rhs[row + y] = weight_tri * Si_b[y];
 	}
 
 

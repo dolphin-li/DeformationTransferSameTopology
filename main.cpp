@@ -86,7 +86,7 @@ int main(int argc, const char* argv[])
 	objMeshGetVerts(srcMesh0, srcVerts0);
 	objMeshGetVerts(tarMesh0, tarVerts0);
 
-	enum {NUM_THREADS = 4};
+	enum {NUM_THREADS = 1};
 	MeshTransfer transfer[NUM_THREADS];
 		
 	for (int i = 0; i < NUM_THREADS; i++)
