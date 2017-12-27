@@ -18,6 +18,7 @@ enum { StreamPrecision = -1,
        FullPrecision = -2 };
 
 namespace internal {
+struct IOFormat;
 template<typename Derived>
 std::ostream & print_matrix(std::ostream & s, const Derived& _m, const IOFormat& fmt);
 }
@@ -49,7 +50,7 @@ std::ostream & print_matrix(std::ostream & s, const Derived& _m, const IOFormat&
   */
 struct IOFormat
 {
-  /** Default contructor, see class IOFormat for the meaning of the parameters */
+  /** Default constructor, see class IOFormat for the meaning of the parameters */
   IOFormat(int _precision = StreamPrecision, int _flags = 0,
     const std::string& _coeffSeparator = " ",
     const std::string& _rowSeparator = "\n", const std::string& _rowPrefix="", const std::string& _rowSuffix="",
@@ -57,6 +58,10 @@ struct IOFormat
   : matPrefix(_matPrefix), matSuffix(_matSuffix), rowPrefix(_rowPrefix), rowSuffix(_rowSuffix), rowSeparator(_rowSeparator),
     rowSpacer(""), coeffSeparator(_coeffSeparator), precision(_precision), flags(_flags)
   {
+    // TODO check if rowPrefix, rowSuffix or rowSeparator contains a newline
+    // don't add rowSpacer if columns are not to be aligned
+    if((flags & DontAlignCols))
+      return;
     int i = int(matSuffix.length())-1;
     while (i>=0 && matSuffix[i]!='\n')
     {
@@ -76,7 +81,7 @@ struct IOFormat
   *
   * \brief Pseudo expression providing matrix output with given format
   *
-  * \param ExpressionType the type of the object on which IO stream operations are performed
+  * \tparam ExpressionType the type of the object on which IO stream operations are performed
   *
   * This class represents an expression with stream operators controlled by a given IOFormat.
   * It is the return type of DenseBase::format()
@@ -101,10 +106,11 @@ class WithFormat
     }
 
   protected:
-    const typename ExpressionType::Nested m_matrix;
+    typename ExpressionType::Nested m_matrix;
     IOFormat m_format;
 };
 
+#ifdef RETARDED_COMPILER
 /** \returns a WithFormat proxy object allowing to print a matrix the with given
   * format \a fmt.
   *
@@ -121,31 +127,17 @@ DenseBase<Derived>::format(const IOFormat& fmt) const
 
 namespace internal {
 
-template<typename Scalar, bool IsInteger>
-struct significant_decimals_default_impl
-{
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  static inline int run()
-  {
-    using std::ceil;
-    using std::log;
-    return cast<RealScalar,int>(ceil(-log(NumTraits<RealScalar>::epsilon())/log(RealScalar(10))));
-  }
-};
-
-template<typename Scalar>
-struct significant_decimals_default_impl<Scalar, true>
-{
-  static inline int run()
-  {
-    return 0;
-  }
-};
-
+// NOTE: This helper is kept for backward compatibility with previous code specializing
+//       this internal::significant_decimals_impl structure. In the future we should directly
+//       call digits10() which has been introduced in July 2016 in 3.3.
 template<typename Scalar>
 struct significant_decimals_impl
-  : significant_decimals_default_impl<Scalar, NumTraits<Scalar>::IsInteger>
-{};
+{
+  static inline int run()
+  {
+    return NumTraits<Scalar>::digits10();
+  }
+};
 
 /** \internal
   * print the matrix \a _m to the output stream \a s using the output format \a fmt */
@@ -160,7 +152,6 @@ std::ostream & print_matrix(std::ostream & s, const Derived& _m, const IOFormat&
   
   typename Derived::Nested m = _m;
   typedef typename Derived::Scalar Scalar;
-  typedef typename Derived::Index Index;
 
   Index width = 0;
 
@@ -244,6 +235,7 @@ std::ostream & operator <<
 {
   return internal::print_matrix(s, m.eval(), EIGEN_DEFAULT_IO_FORMAT);
 }
+#endif
 
 } // end namespace Eigen
 
