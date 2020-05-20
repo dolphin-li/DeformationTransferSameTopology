@@ -79,7 +79,7 @@ void ObjMesh::clear()
 	face_list.clear();
 	material_list.clear();
 	face_normal_list.clear();
-	boundingBox[0] = boundingBox[1] = 0;
+	boundingBox[0] = boundingBox[1] = Eigen::Vector3f::Zero();
 
 	_fast_view_verts.clear();
 	_fast_view_normals.clear();
@@ -94,7 +94,7 @@ void ObjMesh::clear()
 	m_bmeshVerts.clear();
 }
 
-void ObjMesh::translate(ldp::Float3 t)
+void ObjMesh::translate(Eigen::Vector3f t)
 {
 	for (auto& v : vertex_list)
 		v += t;
@@ -104,29 +104,29 @@ void ObjMesh::translate(ldp::Float3 t)
 		delete m_bmesh;
 }
 
-void ObjMesh::scaleBy(ldp::Float3 s, ldp::Float3 c)
+void ObjMesh::scaleBy(Eigen::Vector3f s, Eigen::Vector3f c)
 {
 	for (auto& v : vertex_list)
-		v = (v-c) * s + c;
+		v = (v-c).cwiseProduct(s) + c;
 	updateBoundingBox();
 	_fast_view_should_update = true;
 	if (m_bmesh)
 		delete m_bmesh;
 }
 
-void ObjMesh::scaleByCenter(ldp::Float3 s)
+void ObjMesh::scaleByCenter(Eigen::Vector3f s)
 {
 	auto c = (boundingBox[0] + boundingBox[1]) * 0.5f;
 	scaleBy(s, c);
 }
 
-void ObjMesh::rotateByCenter(ldp::Mat3f r)
+void ObjMesh::rotateByCenter(Eigen::Matrix3f r)
 {
 	auto c = (boundingBox[0] + boundingBox[1]) * 0.5f;
 	rotateBy(r, c);
 }
 
-void ObjMesh::rotateBy(ldp::Mat3f r, ldp::Float3 c)
+void ObjMesh::rotateBy(Eigen::Matrix3f r, Eigen::Vector3f c)
 {
 	for (auto& v : vertex_list)
 		v = r * (v - c) + c;
@@ -137,10 +137,10 @@ void ObjMesh::rotateBy(ldp::Mat3f r, ldp::Float3 c)
 		delete m_bmesh;
 }
 
-void ObjMesh::transform(ldp::Mat4f T)
+void ObjMesh::transform(Eigen::Matrix4f T)
 {
-	auto r = T.getRotationPart();
-	auto t = T.getTranslationPart();
+	auto r = T.topLeftCorner<3,3>();
+	auto t = T.topRightCorner<3,1>();
 	for (auto& v : vertex_list)
 		v = r * v + t;
 	updateNormals();
@@ -155,7 +155,7 @@ void ObjMesh::requireRenderUpdate()
 	_fast_view_should_update = true;	
 }
 
-void ObjMesh::renderConstColor(Float3 color)const
+void ObjMesh::renderConstColor(Eigen::Vector3f color)const
 {
 #ifdef OBJMESH_ENABLE_GL
 	if(!_isEnabled)
@@ -168,7 +168,7 @@ void ObjMesh::renderConstColor(Float3 color)const
 	glDisable(GL_LIGHTING);
 	glPushAttrib(GL_COLOR_WRITEMASK);
 	const obj_face *faces = &face_list[0];
-	const Float3* vertices = &vertex_list[0];
+	const Eigen::Vector3f* vertices = &vertex_list[0];
 	int nfaces = face_list.size();
 	int faceNum = faces[0].vertex_count;
 	glColor3fv(color.ptr());
@@ -220,9 +220,9 @@ void ObjMesh::render(int showType, int frameIndex)
 		vertex_color_list.resize(vertex_list.size(), 0.8);
 
 
-	const Float3* vertices = &vertex_list[0];
-	const Float3* vnormals = &vertex_normal_list[0];
-	const Float3* fnormals = &face_normal_list[0];
+	const Eigen::Vector3f* vertices = &vertex_list[0];
+	const Eigen::Vector3f* vnormals = &vertex_normal_list[0];
+	const Eigen::Vector3f* fnormals = &face_normal_list[0];
 	const obj_face *faces = &face_list[0];
 	const obj_material *mats = 0;
 	int nfaces = face_list.size();
@@ -442,10 +442,10 @@ void ObjMesh::generate_fast_view_tri_face_by_group(int showType)const
 			&& f.material_index < material_list.size()) 
 			iS = f.material_index;
 
-		std::vector<ldp::Float3>& verts = _fast_view_verts[iS];
-		std::vector<ldp::Float3>& normals = _fast_view_normals[iS];
-		std::vector<ldp::Float2>& tex_coords = _fast_view_texcoords[iS];
-		std::vector<ldp::Float3>& colors = _fast_view_colors[iS];
+		std::vector<Eigen::Vector3f>& verts = _fast_view_verts[iS];
+		std::vector<Eigen::Vector3f>& normals = _fast_view_normals[iS];
+		std::vector<Eigen::Vector2f>& tex_coords = _fast_view_texcoords[iS];
+		std::vector<Eigen::Vector3f>& colors = _fast_view_colors[iS];
 
 		for (int j = 0; j <= f.vertex_count-3; j++)
 		{
@@ -475,8 +475,6 @@ void ObjMesh::generate_fast_view_tri_face_by_group(int showType)const
 
 int ObjMesh::loadObj(const char* filename, bool isNormalGen, bool isNormalize)
 {
-	gtime_t t1 = gtime_now();
-
 	clear();
 
 	FILE* obj_file_stream;
@@ -518,7 +516,7 @@ int ObjMesh::loadObj(const char* filename, bool isNormalGen, bool isNormalize)
 		//parse objects
 		else if( strcmp(current_token, "v")==0 ) //process vertex
 		{
-			Float3 v;
+			Eigen::Vector3f v;
 			v[0] = (float)atof( strtok(NULL, WHITESPACE));
 			v[1] = (float)atof( strtok(NULL, WHITESPACE));
 			v[2] = (float)atof( strtok(NULL, WHITESPACE));
@@ -527,7 +525,7 @@ int ObjMesh::loadObj(const char* filename, bool isNormalGen, bool isNormalize)
 		
 		else if( strcmp(current_token, "vn") == 0 ) //process vertex normal
 		{
-			Float3 v;
+			Eigen::Vector3f v;
 			v[0] = (float)atof( strtok(NULL, WHITESPACE));
 			v[1] = (float)atof( strtok(NULL, WHITESPACE));
 			v[2] = (float)atof( strtok(NULL, WHITESPACE));
@@ -536,7 +534,7 @@ int ObjMesh::loadObj(const char* filename, bool isNormalGen, bool isNormalize)
 		
 		else if( strcmp(current_token, "vt") == 0) //process vertex texture
 		{
-			Float2 v;
+			Eigen::Vector2f v;
 			v[0] = (float)atof( strtok(NULL, WHITESPACE));
 			v[1] = (float)atof( strtok(NULL, WHITESPACE));
 			vertex_texture_list.push_back(v);
@@ -599,15 +597,13 @@ int ObjMesh::loadObj(const char* filename, bool isNormalGen, bool isNormalize)
 
 	fclose(obj_file_stream);
 
-	gtime_t t2 = gtime_now();
-
 	if(isNormalGen || vertex_normal_list.size() == 0)
 	{
 		updateNormals();
 	}
 
 	vertex_is_selected.resize(vertex_list.size(), 0);
-	vertex_color_list.resize(vertex_list.size(), 0.8f);
+	vertex_color_list.resize(vertex_list.size(), Eigen::Vector3f::Constant(0.8f));
 
 	updateBoundingBox();
 
@@ -621,8 +617,6 @@ int ObjMesh::loadObj(const char* filename, bool isNormalGen, bool isNormalize)
 
 int ObjMesh::loadOff(const char* filename, bool isNormalize)
 {
-	gtime_t t1 = gtime_now();
-
 	clear();
 
 	FILE* off_file_stream = fopen(filename, "r");
@@ -679,16 +673,13 @@ int ObjMesh::loadOff(const char* filename, bool isNormalize)
 
 	fclose(off_file_stream);
 
-	gtime_t t2 = gtime_now();
-
 	printf("OffLoaded: \n");
 	printf("\tnumber of vertices:%d\n", vertex_list.size());
 	printf("\tnumber of faces:%d\n", face_list.size());
-	printf("Time cost:%f\n", gtime_seconds(t1, t2));
 
 	updateNormals();
 	vertex_is_selected.resize(vertex_list.size(), 0);
-	vertex_color_list.resize(vertex_list.size(), 0.8f);
+	vertex_color_list.resize(vertex_list.size(), Eigen::Vector3f::Constant(0.8f));
 	updateBoundingBox();
 	if (isNormalize)
 		normalizeModel();
@@ -699,11 +690,11 @@ int ObjMesh::loadOff(const char* filename, bool isNormalize)
 
 void ObjMesh::updateBoundingBox()
 {
-	boundingBox[0] = 1e15f;
-	boundingBox[1] = -1e15f;
+	boundingBox[0] = Eigen::Vector3f::Constant(1e15f);
+	boundingBox[1] = Eigen::Vector3f::Constant(-1e15f);
 	for(int i=0; i<(int)vertex_list.size(); i++)
 	{
-		Float3 v = vertex_list[i];
+		Eigen::Vector3f v = vertex_list[i];
 		boundingBox[1][0] = max(v[0], boundingBox[1][0]);
 		boundingBox[1][1] = max(v[1], boundingBox[1][1]);
 		boundingBox[1][2] = max(v[2], boundingBox[1][2]);
@@ -719,9 +710,9 @@ void ObjMesh::flipNormals()
 	for (auto& f : face_list)
 		std::reverse(f.vertex_index, f.vertex_index + f.vertex_count);
 	for (auto& v : face_normal_list)
-		v = 0.f - v;
+		v = -v;
 	for (auto& v : vertex_normal_list)
-		v = 0.f - v;
+		v = -v;
 	_fast_view_should_update = true;
 }
 
@@ -733,17 +724,17 @@ void ObjMesh::updateNormals()
 		vertex_normal_list.resize(vertex_list.size());
 	for(int i=0; i<(int)vertex_normal_list.size(); i++)
 	{
-		vertex_normal_list[i] = 0;
+		vertex_normal_list[i].setZero();
 	}
 	for(int i=0; i<(int)face_list.size(); i++)
 	{
 		obj_face &f = face_list[i];
-		Float3 v = 0;
+		Eigen::Vector3f v = Eigen::Vector3f::Zero();
 		for(int j=0; j<=f.vertex_count-3; j++)
 		{
 			int j1 = (j+1) % f.vertex_count;
 			int j2 = (j+2) % f.vertex_count;
-			v += ldp::Float3(vertex_list[f.vertex_index[j1]]-vertex_list[f.vertex_index[j]]).cross(
+			v += Eigen::Vector3f(vertex_list[f.vertex_index[j1]]-vertex_list[f.vertex_index[j]]).cross(
 				vertex_list[f.vertex_index[j2]]-vertex_list[f.vertex_index[j]]);
 		}
 		for(int j=0; j<f.vertex_count; j++)
@@ -751,27 +742,27 @@ void ObjMesh::updateNormals()
 			vertex_normal_list[f.vertex_index[j]] += v;
 			f.normal_index[j] = f.vertex_index[j];
 		}
-		if(v.length() != 0)
-			face_normal_list[i] = v.normalizeLocal();
+		if(v.norm() != 0)
+			face_normal_list[i] = v.normalized();
 	}
 	for(int i=0; i<(int)vertex_normal_list.size(); i++)
 	{
-		if(vertex_normal_list[i].length() != 0)
-			vertex_normal_list[i].normalizeLocal();
+		if(vertex_normal_list[i].norm() != 0)
+			vertex_normal_list[i].normalized();
 	}
 	_fast_view_should_update = true;
 }
 
 void ObjMesh::normalizeModel()
 {
-	Float3 rg = boundingBox[1] - boundingBox[0];
-	Float3 center = 0.5f * (boundingBox[1] + boundingBox[0]);
+	Eigen::Vector3f rg = boundingBox[1] - boundingBox[0];
+	Eigen::Vector3f center = 0.5f * (boundingBox[1] + boundingBox[0]);
 	float diag = max(rg[0], max(rg[1], rg[2]));
 	if(diag == 0)
 		return;
 	for(int i=0; i<(int)vertex_list.size(); i++)
 	{
-		Float3 &v = vertex_list[i];
+		Eigen::Vector3f &v = vertex_list[i];
 		v = (v - center) / diag;
 	}
 	_fast_view_should_update = true;
@@ -786,18 +777,18 @@ BMesh* ObjMesh::get_bmesh(bool triangulate)
 	m_bmesh = new BMesh();
 	m_bmeshVerts.clear();
 
-	std::vector<ldp::Int3> faces;
+	std::vector<Eigen::Vector3i> faces;
 
 	if (triangulate)
 	{
 		// init bmesh
-		const static ldp::Int3 od[2] = { ldp::Int3(0, 1, 2), ldp::Int3(0, 2, 3) };
+		const static Eigen::Vector3i od[2] = { Eigen::Vector3i(0, 1, 2), Eigen::Vector3i(0, 2, 3) };
 		for (int i = 0; i < face_list.size(); i++)
 		{
 			const ObjMesh::obj_face& f = face_list[i];
 			for (int j = 0; j <= f.vertex_count - 3; j++)
 			{
-				faces.push_back(ldp::Int3(f.vertex_index[od[j][0]],
+				faces.push_back(Eigen::Vector3i(f.vertex_index[od[j][0]],
 					f.vertex_index[od[j][1]], f.vertex_index[od[j][2]]));
 			}
 		}
@@ -930,7 +921,7 @@ bool ObjMesh::subdiv_loop_to(ObjMesh& result)
 		}
 		assert(ids.size() >= 1);
 
-		Float3 rv;
+		Eigen::Vector3f rv;
 		if (ids.size() != 4)	
 			rv = (vertex_list[ids[0]] + vertex_list[ids[1]]) * (1.f / 2.f);
 		else
@@ -940,7 +931,7 @@ bool ObjMesh::subdiv_loop_to(ObjMesh& result)
 	} // end for edges
 
 	// compute vert verts
-	std::vector<Float3> pos;
+	std::vector<Eigen::Vector3f> pos;
 	std::vector<int> boundary_id;
 	BMESH_ALL_VERTS(v, v_of_m_iter, bmesh)
 	{
@@ -954,12 +945,12 @@ bool ObjMesh::subdiv_loop_to(ObjMesh& result)
 				boundary_id.push_back((int)pos.size());
 			pos.push_back(vertex_list[v1->getIndex()]);
 		}
-		Float3 self = vertex_list[v->getIndex()];
+		Eigen::Vector3f self = vertex_list[v->getIndex()];
 
 		if (boundary_id.size() == 2)
 		{
-			const Float3 p1 = pos[boundary_id[0]];
-			const Float3 p2 = pos[boundary_id[1]];
+			const Eigen::Vector3f p1 = pos[boundary_id[0]];
+			const Eigen::Vector3f p2 = pos[boundary_id[1]];
 			result.vertex_list[v->getIndex()] = 0.75f * self + 0.125f * (p1 + p2);
 		}
 		else
@@ -1150,19 +1141,19 @@ void ObjMesh::saveObj(const char* path)const
 	fprintf(pFile, "#number of vertices: %d\n", vertex_list.size());
 	for (int i = 0; i < vertex_list.size(); i++)
 	{
-		ldp::Float3 v = vertex_list[i];
+		Eigen::Vector3f v = vertex_list[i];
 		fprintf(pFile, "v %f %f %f\n", v[0], v[1], v[2]);
 	}
 	fprintf(pFile, "#number of normals: %d\n", vertex_normal_list.size());
 	for (int i = 0; i < vertex_normal_list.size(); i++)
 	{
-		ldp::Float3 v = vertex_normal_list[i];
+		Eigen::Vector3f v = vertex_normal_list[i];
 		fprintf(pFile, "vn %f %f %f\n", v[0], v[1], v[2]);
 	}
 	fprintf(pFile, "#number of texcoords: %d\n", vertex_texture_list.size());
 	for (int i = 0; i < vertex_texture_list.size(); i++)
 	{
-		ldp::Float2 v = vertex_texture_list[i];
+		Eigen::Vector2f v = vertex_texture_list[i];
 		fprintf(pFile, "vt %f %f\n", v[0], v[1]);
 	}
 

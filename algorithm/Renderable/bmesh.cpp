@@ -70,7 +70,7 @@ BMesh::BMesh()
 {
 	vpool = epool = fpool = lpool = 0;
 	totvert = totedge = totloop = totface = 0;
-	m_default_face_color = ldp::Float3(FNON_SEL_COLOR[0]
+	m_default_face_color = Eigen::Vector3f(FNON_SEL_COLOR[0]
 		, FNON_SEL_COLOR[1], FNON_SEL_COLOR[2]);
 
 	m_render_point_size = 3;
@@ -81,7 +81,7 @@ BMesh::BMesh(BMesh& other)
 {
 	vpool = epool = fpool = lpool = 0;
 	totvert = totedge = totloop = totface = 0;
-	m_default_face_color = ldp::Float3(FNON_SEL_COLOR[0]
+	m_default_face_color = Eigen::Vector3f(FNON_SEL_COLOR[0]
 		, FNON_SEL_COLOR[1], FNON_SEL_COLOR[2]);
 
 	init_bmesh(&other);
@@ -431,7 +431,7 @@ void BMesh::updateIndex(int type /* = BM_VERT | BM_EDGE | BM_FACE */)
 	}
 }
 
-void BMesh::set_default_face_color(ldp::Float3 color)
+void BMesh::set_default_face_color(Eigen::Vector3f color)
 {
 	m_default_face_color = color;
 }

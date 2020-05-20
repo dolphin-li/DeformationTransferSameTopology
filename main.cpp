@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include "MeshTransfer.h"
-#include "Renderable\ObjMesh.h"
+#include "Renderable/ObjMesh.h"
 
 static void objMeshGetFace(const ObjMesh& mesh, std::vector<MeshTransfer::Int3>& triangles)
 {
@@ -27,7 +27,7 @@ static void objMeshSetVerts(ObjMesh& mesh, const std::vector<MeshTransfer::Float
 {
 	mesh.vertex_list.resize(verts.size());
 	for (size_t iVert = 0; iVert < mesh.vertex_list.size(); iVert++)
-		mesh.vertex_list[iVert] = ldp::Float3(verts[iVert][0], verts[iVert][1], verts[iVert][2]);
+		mesh.vertex_list[iVert] = Eigen::Vector3f(verts[iVert][0], verts[iVert][1], verts[iVert][2]);
 }
 
 int main(int argc, const char* argv[])
@@ -53,24 +53,6 @@ int main(int argc, const char* argv[])
 			result_folder.append("/");
 	}
 
-#ifdef _WIN32
-	std::string win_result_folder = result_folder;
-	for (auto& c : win_result_folder)
-	{
-		if (c == '/')
-			c = '\\';
-	}
-	DWORD dwAttrib = GetFileAttributesA(win_result_folder.c_str());
-
-	if (!(dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY)))
-	{
-		char cmd[1024];
-		sprintf_s(cmd, "mkdir %s", win_result_folder.c_str());
-		printf("%s\n", cmd);
-		system(cmd);
-	}
-#endif
-
 	if (!srcMesh0.loadObj((src_folder + "0.obj").c_str(), false, false))
 	{
 		printf("Error, source mesh not found: %s\n", (src_folder + "0.obj").c_str());
@@ -91,15 +73,12 @@ int main(int argc, const char* argv[])
 		
 	for (int i = 0; i < NUM_THREADS; i++)
 	{
-		gtime_t tbegin = ldp::gtime_now();
 		if (!transfer[i].init((int)triangles.size(), triangles.data(), 
 			(int)srcVerts0.size(), srcVerts0.data(), tarVerts0.data()))
 		{
 			printf("[thread=%d]: %s\n", i, transfer[i].getErrString());
 			return -1;
 		}
-		gtime_t tend = ldp::gtime_now();
-		printf("init time[%d]: %f sec\n", i, ldp::gtime_seconds(tbegin, tend));
 	}
 
 #pragma omp parallel for num_threads(NUM_THREADS)
@@ -118,8 +97,6 @@ int main(int argc, const char* argv[])
 			continue;
 		}
 
-		gtime_t tbegin = ldp::gtime_now();
-
 		objMeshGetVerts(srcMesh1, srcVerts1);
 		if (!transfer[tid].transfer(srcVerts1, tarVerts1))
 		{
@@ -127,9 +104,6 @@ int main(int argc, const char* argv[])
 			continue;
 		}
 		objMeshSetVerts(tarMesh1, tarVerts1);
-
-		gtime_t tend = ldp::gtime_now();
-		printf("transfer time[%d]: %f sec\n", iMesh, ldp::gtime_seconds(tbegin, tend));
 
 		tarMesh1.saveObj((result_folder + std::to_string(iMesh) + ".obj").c_str());
 	}

@@ -88,7 +88,7 @@ public:
 	/**
 	* set color material for rendering faces
 	* */
-	void set_default_face_color(ldp::Float3 color);
+	void set_default_face_color(Eigen::Vector3f color);
 
 	/**
 	* verts: 3*number, x.y.z, x.y.z
@@ -105,7 +105,7 @@ public:
 	* @showType: same with in Renderable.h
 	* */
 	virtual void render(int showType, int frameIdx=0);
-	virtual void renderConstColor(Float3 color)const{}
+	virtual void renderConstColor(Eigen::Vector3f color)const{}
 	virtual int getMeshType()const{ return TYPE_BMESH; }
 	void set_render_point_size(float s){ m_render_point_size = s; }
 	float get_render_point_size()const{ return m_render_point_size; }
@@ -494,7 +494,7 @@ private:
 	/*element pools*/
 	BLI_mempool* vpool, *fpool, *epool, *lpool;
 	int totvert, totedge, totloop, totface;
-	ldp::Float3 m_default_face_color;
+	Eigen::Vector3f m_default_face_color;
 
 	float m_render_point_size;
 	float m_render_line_width;

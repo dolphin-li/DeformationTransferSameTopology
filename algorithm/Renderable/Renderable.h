@@ -1,10 +1,9 @@
 #ifndef __RENDERABLE_H__
 #define __RENDERABLE_H__
 
-#include "assert.h"
-#include "ldpMat\ldp_basic_mat.h"
+#include <assert.h>
 #include <string>
-using ldp::Float3;
+#include "Eigen/Dense"
 namespace ldp
 {
 	class Camera;
@@ -74,13 +73,13 @@ public:
 public:
 	virtual void render(int showType, int frameIndex = 0) = 0;
 
-	virtual void renderConstColor(ldp::Float3 color)const = 0;
+	virtual void renderConstColor(Eigen::Vector3f color)const = 0;
 
 	virtual void renderForSelection(int showType, int idStart = 0) {}
 
-	virtual void selectAction(ldp::Float4 selectedColor, SelectActionType actionType = MOUSE_MOVE, int actionCode = 0) {}
+	virtual void selectAction(Eigen::Vector4f selectedColor, SelectActionType actionType = MOUSE_MOVE, int actionCode = 0) {}
 
-	virtual void transformAction(TransformActionType act, ldp::Float2 mousePos) {}
+	virtual void transformAction(TransformActionType act, Eigen::Vector2f mousePos) {}
 
 	virtual void setAxisRenderMode(AxisRenderMode mode) {}
 
@@ -88,8 +87,8 @@ public:
 
 	virtual int getMeshType()const { return TYPE_GENERAL; }
 
-	virtual ldp::Float3 getCenter()const { return 0.f; }
-	virtual ldp::Float3 getBoundingBox(int i)const { return 0.f; }
+	virtual Eigen::Vector3f getCenter()const { return Eigen::Vector3f::Zero(); }
+	virtual Eigen::Vector3f getBoundingBox(int i)const { return Eigen::Vector3f::Zero(); }
 
 	virtual void clear() { assert(0 && "your child class should overload clear()"); }
 

@@ -27,9 +27,9 @@ public:
 		unsigned int texture_id;
 		std::vector<unsigned char> image;
 		int image_width, image_height, image_channel;
-		ldp::Float3 amb;
-		ldp::Float3 diff;
-		ldp::Float3 spec;
+		Eigen::Vector3f amb;
+		Eigen::Vector3f diff;
+		Eigen::Vector3f spec;
 		float  reflect;
 		float  refract;
 		float  trans;
@@ -68,7 +68,7 @@ public:
 	~ObjMesh();
 	virtual void clear();
 	virtual void render(int showType, int frameIndex=0);
-	virtual void renderConstColor(ldp::Float3 color)const;
+	virtual void renderConstColor(Eigen::Vector3f color)const;
 	virtual int loadObj(const char* path, bool isNormalGen, bool isNormalize);
 	virtual void saveObj(const char* path)const;
 	int loadOff(const char* filename, bool isNormalize);
@@ -104,15 +104,15 @@ public:
 
 	virtual void cloneFrom(const ObjMesh* rhs);
 
-	void translate(ldp::Float3 t);
-	void scaleByCenter(ldp::Float3 s);
-	void scaleBy(ldp::Float3 s, ldp::Float3 c);
-	void rotateByCenter(ldp::Mat3f r);
-	void rotateBy(ldp::Mat3f r, ldp::Float3 c);
-	void transform(ldp::Mat4f T);
+	void translate(Eigen::Vector3f t);
+	void scaleByCenter(Eigen::Vector3f s);
+	void scaleBy(Eigen::Vector3f s, Eigen::Vector3f c);
+	void rotateByCenter(Eigen::Matrix3f r);
+	void rotateBy(Eigen::Matrix3f r, Eigen::Vector3f c);
+	void transform(Eigen::Matrix4f T);
 
-	virtual ldp::Float3 getCenter()const { return (boundingBox[0] + boundingBox[1])*0.5f; }
-	virtual ldp::Float3 getBoundingBox(int i)const { return boundingBox[i]; }
+	virtual Eigen::Vector3f getCenter()const { return (boundingBox[0] + boundingBox[1])*0.5f; }
+	virtual Eigen::Vector3f getBoundingBox(int i)const { return boundingBox[i]; }
 
 	// bmesh structure, which is covinient for per-element oparation
 	ldp::BMesh* get_bmesh(bool triangulate);
@@ -125,22 +125,22 @@ protected:
 	void generate_fast_view_tri_face_by_group(int showType)const;
 	void update_selection_via_bmesh();
 public:
-	ldp::Float3 boundingBox[2];
+	Eigen::Vector3f boundingBox[2];
 	char scene_filename[OBJ_FILENAME_LENGTH];
 	char material_filename[OBJ_FILENAME_LENGTH];
 	static obj_material default_material;
-	std::vector<ldp::Float3> vertex_list;
-	std::vector<ldp::Float3> vertex_normal_list;
-	std::vector<ldp::Float3> vertex_color_list;
-	std::vector<ldp::Float3> face_normal_list;
-	std::vector<ldp::Float2> vertex_texture_list;
+	std::vector<Eigen::Vector3f> vertex_list;
+	std::vector<Eigen::Vector3f> vertex_normal_list;
+	std::vector<Eigen::Vector3f> vertex_color_list;
+	std::vector<Eigen::Vector3f> face_normal_list;
+	std::vector<Eigen::Vector2f> vertex_texture_list;
 	std::vector<obj_face> face_list;
 	std::vector<obj_material> material_list;
 protected:
-	mutable std::vector<std::vector<ldp::Float3>> _fast_view_verts;
-	mutable std::vector<std::vector<ldp::Float3>> _fast_view_normals;
-	mutable std::vector<std::vector<ldp::Float2>> _fast_view_texcoords;
-	mutable std::vector<std::vector<ldp::Float3>> _fast_view_colors;
+	mutable std::vector<std::vector<Eigen::Vector3f>> _fast_view_verts;
+	mutable std::vector<std::vector<Eigen::Vector3f>> _fast_view_normals;
+	mutable std::vector<std::vector<Eigen::Vector2f>> _fast_view_texcoords;
+	mutable std::vector<std::vector<Eigen::Vector3f>> _fast_view_colors;
 	mutable bool _fast_view_should_update;
 	mutable int _fast_view_last_showType;
 private:

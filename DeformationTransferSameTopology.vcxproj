@@ -161,11 +161,6 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="algorithm\ldpMat\half.hpp" />
-    <ClInclude Include="algorithm\ldpMat\ldpdef.h" />
-    <ClInclude Include="algorithm\ldpMat\ldp_basic_mat.h" />
-    <ClInclude Include="algorithm\ldpMat\ldp_basic_vec.h" />
-    <ClInclude Include="algorithm\ldpMat\Quaternion.h" />
     <ClInclude Include="algorithm\MeshTransfer.h" />
     <ClInclude Include="algorithm\ParameterConfig.h" />
     <ClInclude Include="algorithm\Renderable\bmesh.h" />

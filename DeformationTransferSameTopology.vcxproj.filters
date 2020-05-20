@@ -12,9 +12,6 @@
     <Filter Include="algorithm">
       <UniqueIdentifier>{2aecd36f-7fe8-42dc-90a5-b0efdfde4cd7}</UniqueIdentifier>
     </Filter>
-    <Filter Include="algorithm\ldpMat">
-      <UniqueIdentifier>{39f06846-eb17-403b-a0f6-fc0c9a909892}</UniqueIdentifier>
-    </Filter>
     <Filter Include="algorithm\Renderable">
       <UniqueIdentifier>{cd16f2c8-d15a-4719-b84b-33733ba9610f}</UniqueIdentifier>
     </Filter>
@@ -37,21 +34,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="algorithm\ldpMat\half.hpp">
-      <Filter>algorithm\ldpMat</Filter>
-    </ClInclude>
-    <ClInclude Include="algorithm\ldpMat\ldp_basic_mat.h">
-      <Filter>algorithm\ldpMat</Filter>
-    </ClInclude>
-    <ClInclude Include="algorithm\ldpMat\ldp_basic_vec.h">
-      <Filter>algorithm\ldpMat</Filter>
-    </ClInclude>
-    <ClInclude Include="algorithm\ldpMat\ldpdef.h">
-      <Filter>algorithm\ldpMat</Filter>
-    </ClInclude>
-    <ClInclude Include="algorithm\ldpMat\Quaternion.h">
-      <Filter>algorithm\ldpMat</Filter>
-    </ClInclude>
     <ClInclude Include="algorithm\Renderable\bmesh.h">
       <Filter>algorithm\Renderable</Filter>
     </ClInclude>
